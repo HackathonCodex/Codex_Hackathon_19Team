@@ -1,0 +1,14 @@
+runpod>=1.7.13
+torch
+torchvision
+opencv-python-headless
+pillow
+numpy
+transformers
+accelerate
+paddleocr
+paddlepaddle-gpu
+ultralytics
+segment-anything
+insightface
+onnxruntime-gpu

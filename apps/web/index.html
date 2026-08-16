@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Context Preserving Image Replacement</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="toolbar" aria-label="작업 도구">
+        <div class="brand">
+          <span class="mark"></span>
+          <div>
+            <h1>Image Context Replacer</h1>
+            <p>얼굴, 간판, 표지판, 번호판을 자연 치환</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <label class="file-button">
+            이미지 업로드
+            <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp" />
+          </label>
+          <button id="sampleBtn" type="button">샘플 불러오기</button>
+          <button id="detectBtn" type="button">Agent 분석</button>
+          <button id="applyBtn" type="button" class="primary">선택 치환</button>
+          <button id="verifyBtn" type="button">결과 검수</button>
+          <button id="downloadBtn" type="button">다운로드</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <aside class="side-panel">
+          <div class="field">
+            <label for="agentMode">실행 모드</label>
+            <select id="agentMode">
+              <option value="auto">Agent 자동</option>
+              <option value="plan">Agent 계획만</option>
+              <option value="local">로컬 데모</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="replacementType">수동 영역 유형</label>
+            <select id="replacementType">
+              <option value="face">다른 얼굴</option>
+              <option value="store_sign">가짜 간판</option>
+              <option value="road_sign">가짜 표지판</option>
+              <option value="license_plate">무효 번호판</option>
+              <option value="landmark">일반 배경</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="intensity">자연 치환 강도</label>
+            <input id="intensity" type="range" min="1" max="3" value="2" />
+          </div>
+
+          <div class="switch-row">
+            <button id="selectAllBtn" type="button">전체 선택</button>
+            <button id="preserveModeBtn" type="button">유지 클릭</button>
+            <button id="clearBtn" type="button">초기화</button>
+          </div>
+
+          <div class="candidate-head">
+            <h2>치환 후보</h2>
+            <span id="candidateCount">0</span>
+          </div>
+          <ol id="candidateList" class="candidate-list"></ol>
+
+          <div class="agent-head">
+            <h2>Agent 계획</h2>
+            <span id="agentBadge">standby</span>
+          </div>
+          <div id="agentPlan" class="agent-plan">
+            Agent가 이미지를 읽고 후보, 위험도, 치환 프롬프트를 결정합니다.
+          </div>
+        </aside>
+
+        <section class="stage-wrap">
+          <div class="stage-head">
+            <div class="tabs" role="tablist" aria-label="보기 모드">
+              <button id="resultTab" type="button" class="active">결과</button>
+              <button id="originalTab" type="button">원본</button>
+            </div>
+            <p id="statusText">샘플 이미지가 준비되었습니다.</p>
+          </div>
+
+          <div class="canvas-frame">
+            <canvas id="imageCanvas" width="1200" height="760"></canvas>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
