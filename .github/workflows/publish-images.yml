@@ -14,36 +14,48 @@ jobs:
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+
     steps:
       - uses: actions/checkout@v5
+
       - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v4
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: apps/web
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.DOCKERHUB_USERNAME }}/privacy-image-guard-web:${{ env.IMAGE_TAG }}
       - uses: docker/build-push-action@v7
         with:
           context: apps/api
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ env.DOCKERHUB_USERNAME }}/privacy-image-guard-api:${{ env.IMAGE_TAG }}
+
       - uses: docker/build-push-action@v7
         with:
           context: services/cv
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ env.DOCKERHUB_USERNAME }}/privacy-image-guard-cv:${{ env.IMAGE_TAG }}
+
   deploy:
     needs: publish
     runs-on: ubuntu-latest
     env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
       EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY_PATH }}
       EC2_SSH_KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+
     steps:
+      - uses: actions/checkout@v5
       - name: Configure SSH
         run: |
           install -m 700 -d ~/.ssh
@@ -51,7 +63,9 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$EC2_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
       - name: Deploy to EC2
         run: |
+          scp -i ~/.ssh/id_ed25519 compose.yaml "$EC2_USERNAME@$EC2_HOST:/opt/codexcv/compose.yml"
           ssh -i ~/.ssh/id_ed25519 "$EC2_USERNAME@$EC2_HOST" \
-            "cd /opt/codexcv && printf 'DOCKERHUB_USERNAME=%s\\nIMAGE_TAG=%s\\n' '$DOCKERHUB_USERNAME' '$IMAGE_TAG' > .env && docker compose pull && docker compose up -d && curl --fail --retry 5 --retry-connrefused http://127.0.0.1:8080/health/cv"
+            'cd /opt/codexcv && docker compose pull && docker compose up -d && sleep 5 && curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://127.0.0.1:8080/health/cv'

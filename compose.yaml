@@ -1,12 +1,20 @@
 services:
+  web:
+    image: ${DOCKERHUB_USERNAME}/privacy-image-guard-web:${IMAGE_TAG:-latest}
+    ports:
+      - "127.0.0.1:8081:80"
+
   api:
     image: ${DOCKERHUB_USERNAME}/privacy-image-guard-api:${IMAGE_TAG:-latest}
     environment:
       CV_URL: http://cv:8000
     ports:
-      - "8080:8000"
+      - "127.0.0.1:8080:8000"
     depends_on:
       - cv
 
   cv:
     image: ${DOCKERHUB_USERNAME}/privacy-image-guard-cv:${IMAGE_TAG:-latest}
+    environment:
+      RUNPOD_API_KEY: ${RUNPOD_API_KEY:-}
+      RUNPOD_ENDPOINT_ID: ${RUNPOD_ENDPOINT_ID:-}

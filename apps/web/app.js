@@ -22,35 +22,26 @@ const originalTab = document.querySelector("#originalTab");
 
 let originalImageData = null;
 let resultImageData = null;
-let sourceImage = null;
-let sourceKind = "sample";
 let candidates = [];
 let showOriginal = false;
 let drawing = false;
 let startPoint = null;
 let draftRect = null;
-let latestPlans = [];
 let preserveClickMode = false;
 
 const typeLabels = {
-  face: "다른 얼굴",
-  store_sign: "가짜 간판",
-  road_sign: "가짜 표지판",
-  license_plate: "무효 번호판",
-  landmark: "일반 배경",
-};
-
-const fakeNames = {
-  store_sign: ["다온밥상", "하루정원", "온기식당", "소담면옥", "모아카페"],
-  road_sign: ["해온로", "가람역", "서림길", "모래내", "새봄교차로"],
-  license_plate: ["00가 0000", "12무 0000", "가 00나 0000", "99허 9999"],
+  face: "얼굴",
+  store_sign: "간판",
+  road_sign: "도로 표지판",
+  license_plate: "차량 번호판",
+  landmark: "위치 단서",
 };
 
 function setStatus(message) {
   statusText.textContent = message;
 }
 
-function setAgent(message, badge = "agent") {
+function setAgent(message, badge = "cv") {
   agentBadge.textContent = badge;
   agentPlan.textContent = message;
 }
@@ -98,7 +89,6 @@ function setPreserveClickMode(enabled) {
 }
 
 function drawSampleScene() {
-  sourceKind = "sample";
   fitCanvasToImage(1200, 760);
 
   const sky = ctx.createLinearGradient(0, 0, 0, 330);
@@ -241,7 +231,7 @@ function addSampleCandidates() {
   renderCandidateList();
   renderCanvas();
   setStatus("후보를 찾았습니다. 필요한 항목만 선택해서 치환하세요.");
-  setAgent("로컬 샘플 후보를 만들었습니다. Agent 서버가 켜져 있으면 실제 이미지 분석과 프롬프트 계획을 요청할 수 있습니다.", "local");
+  setAgent("로컬 샘플 후보를 만들었습니다. CV API 분석을 선택하면 서버에 분석을 요청합니다.", "local");
 }
 
 function makeCandidate(type, x, y, w, h, reason) {
@@ -279,12 +269,11 @@ function renderCandidateList() {
     title.textContent = `${index + 1}. ${typeLabels[candidate.type]}`;
     const meta = document.createElement("span");
     const risk = candidate.risk ? ` · ${candidate.risk}` : "";
-    const plan = candidate.plan?.replacementText ? ` → ${candidate.plan.replacementText}` : "";
-    meta.textContent = `${candidate.reason}${risk}${plan} · ${candidate.w}x${candidate.h}`;
+    meta.textContent = `${candidate.reason}${risk} · ${candidate.w}x${candidate.h}`;
     body.append(title, meta);
     const state = document.createElement("span");
     state.className = "candidate-state";
-    state.textContent = candidate.selected ? "치환" : "유지";
+    state.textContent = candidate.selected ? "가리기" : "유지";
     item.append(checkbox, body, state);
     candidateList.append(item);
   });
@@ -318,11 +307,6 @@ function drawRect(rect, color, label) {
 
 async function applySelectedReplacements() {
   if (!resultImageData) return;
-  if (agentMode.value !== "local") {
-    const aiResult = await requestAgentReplacement();
-    if (aiResult) return;
-    if (agentMode.value === "plan") return;
-  }
   ctx.putImageData(resultImageData, 0, 0);
   candidates.filter((candidate) => candidate.selected).forEach((candidate) => {
     replaceCandidate(candidate);
@@ -331,7 +315,7 @@ async function applySelectedReplacements() {
   showOriginal = false;
   syncTabs();
   renderCanvas();
-  setStatus("선택한 식별 단서를 자연 치환했습니다.");
+  setStatus("선택한 영역을 가렸습니다. 원본 탭에서 다시 확인할 수 있습니다.");
 }
 
 function replaceCandidate(candidate) {
@@ -342,12 +326,14 @@ function replaceCandidate(candidate) {
     w: candidate.w + pad * 2,
     h: candidate.h + pad * 2,
   });
-  softenPatch(rect);
-  if (candidate.type === "face") drawGeneratedFace(rect);
-  if (candidate.type === "store_sign") drawGeneratedStoreSign(rect);
-  if (candidate.type === "road_sign") drawGeneratedRoadSign(rect);
-  if (candidate.type === "license_plate") drawGeneratedPlate(rect);
-  if (candidate.type === "landmark") drawBackgroundTexture(rect);
+  const patch = document.createElement("canvas");
+  patch.width = rect.w;
+  patch.height = rect.h;
+  patch.getContext("2d").drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+  ctx.save();
+  ctx.filter = `blur(${Math.max(8, Number(intensity.value) * 7)}px)`;
+  ctx.drawImage(patch, rect.x, rect.y);
+  ctx.restore();
 }
 
 function clampRect(rect) {
@@ -358,201 +344,9 @@ function clampRect(rect) {
   return { x, y, w, h };
 }
 
-function sampleAverage(rect) {
-  const sx = Math.max(0, Math.floor(rect.x - 8));
-  const sy = Math.max(0, Math.floor(rect.y - 8));
-  const sw = Math.min(canvas.width - sx, Math.floor(rect.w + 16));
-  const sh = Math.min(canvas.height - sy, Math.floor(rect.h + 16));
-  const data = ctx.getImageData(sx, sy, sw, sh).data;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  let count = 0;
-  for (let i = 0; i < data.length; i += 16) {
-    r += data[i];
-    g += data[i + 1];
-    b += data[i + 2];
-    count += 1;
-  }
-  return {
-    r: Math.round(r / count),
-    g: Math.round(g / count),
-    b: Math.round(b / count),
-  };
-}
-
-function rgb(color, alpha = 1) {
-  return `rgba(${color.r}, ${color.g}, ${color.b}, ${alpha})`;
-}
-
-function softenPatch(rect) {
-  const avg = sampleAverage(rect);
-  const gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
-  gradient.addColorStop(0, rgb(lighten(avg, 18), 0.98));
-  gradient.addColorStop(1, rgb(darken(avg, 18), 0.98));
-  ctx.save();
-  ctx.fillStyle = gradient;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.globalAlpha = 0.12;
-  for (let i = 0; i < 45; i += 1) {
-    ctx.fillStyle = i % 2 === 0 ? "#fff" : "#111";
-    ctx.fillRect(
-      rect.x + Math.random() * rect.w,
-      rect.y + Math.random() * rect.h,
-      1 + Math.random() * 2,
-      1 + Math.random() * 2,
-    );
-  }
-  ctx.restore();
-}
-
-function lighten(color, amount) {
-  return {
-    r: Math.min(255, color.r + amount),
-    g: Math.min(255, color.g + amount),
-    b: Math.min(255, color.b + amount),
-  };
-}
-
-function darken(color, amount) {
-  return {
-    r: Math.max(0, color.r - amount),
-    g: Math.max(0, color.g - amount),
-    b: Math.max(0, color.b - amount),
-  };
-}
-
-function drawGeneratedFace(rect) {
-  const cx = rect.x + rect.w / 2;
-  const cy = rect.y + rect.h / 2;
-  const size = Math.min(rect.w, rect.h);
-  const skin = [{ r: 190, g: 133, b: 96 }, { r: 222, g: 170, b: 128 }, { r: 138, g: 91, b: 66 }][
-    Math.floor(Math.random() * 3)
-  ];
-  ctx.save();
-  ctx.fillStyle = "rgba(30, 24, 20, 0.34)";
-  ctx.beginPath();
-  ctx.ellipse(cx, cy - size * 0.16, size * 0.48, size * 0.42, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = rgb(skin);
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, size * 0.38, size * 0.43, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgba(55, 35, 24, 0.95)";
-  ctx.beginPath();
-  ctx.ellipse(cx, cy - size * 0.26, size * 0.42, size * 0.19, 0, Math.PI, 0);
-  ctx.fill();
-  ctx.fillStyle = "#241b17";
-  ctx.beginPath();
-  ctx.arc(cx - size * 0.13, cy - size * 0.02, Math.max(1.5, size * 0.025), 0, Math.PI * 2);
-  ctx.arc(cx + size * 0.13, cy - size * 0.02, Math.max(1.5, size * 0.025), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(92, 45, 44, 0.75)";
-  ctx.lineWidth = Math.max(1, size * 0.025);
-  ctx.beginPath();
-  ctx.arc(cx, cy + size * 0.14, size * 0.12, 0.12, Math.PI - 0.12);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawGeneratedStoreSign(rect) {
-  const palettes = [
-    ["#7e3f2f", "#fff5da"],
-    ["#164f55", "#f8f2dc"],
-    ["#496033", "#fff3cf"],
-    ["#7b6530", "#fff8e8"],
-  ];
-  const [bg, fg] = palettes[Math.floor(Math.random() * palettes.length)];
-  const text = pick(fakeNames.store_sign);
-  ctx.save();
-  ctx.fillStyle = bg;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.fillStyle = "rgba(255,255,255,0.18)";
-  ctx.fillRect(rect.x + 8, rect.y + 7, Math.max(8, rect.w - 16), Math.max(5, rect.h * 0.16));
-  ctx.fillStyle = fg;
-  ctx.font = `700 ${Math.max(16, Math.min(38, rect.h * 0.48))}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, rect.x + rect.w / 2, rect.y + rect.h / 2 + 2, rect.w - 16);
-  addEdgeBlend(rect);
-  ctx.restore();
-}
-
-function drawGeneratedRoadSign(rect) {
-  const text1 = pick(fakeNames.road_sign);
-  const text2 = `${Math.ceil(Math.random() * 4)}km`;
-  ctx.save();
-  ctx.fillStyle = Math.random() > 0.35 ? "#295d51" : "#2f5d82";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = "#f3f2e5";
-  ctx.lineWidth = Math.max(2, rect.h * 0.05);
-  ctx.strokeRect(rect.x + 6, rect.y + 6, rect.w - 12, rect.h - 12);
-  ctx.fillStyle = "#f3f2e5";
-  ctx.font = `700 ${Math.max(14, Math.min(30, rect.h * 0.34))}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`${text1} ${text2}`, rect.x + rect.w / 2, rect.y + rect.h * 0.42, rect.w - 18);
-  ctx.font = `600 ${Math.max(11, Math.min(20, rect.h * 0.23))}px sans-serif`;
-  ctx.fillText(pick(fakeNames.road_sign), rect.x + rect.w / 2, rect.y + rect.h * 0.72, rect.w - 18);
-  addEdgeBlend(rect);
-  ctx.restore();
-}
-
-function drawGeneratedPlate(rect) {
-  ctx.save();
-  ctx.fillStyle = "#f5f5ef";
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = "#313631";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2);
-  ctx.fillStyle = "#222";
-  ctx.font = `700 ${Math.max(12, Math.min(24, rect.h * 0.48))}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(pick(fakeNames.license_plate), rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w - 8);
-  addEdgeBlend(rect);
-  ctx.restore();
-}
-
-function drawBackgroundTexture(rect) {
-  const avg = sampleAverage(rect);
-  ctx.save();
-  const gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h);
-  gradient.addColorStop(0, rgb(lighten(avg, 22)));
-  gradient.addColorStop(1, rgb(darken(avg, 14)));
-  ctx.fillStyle = gradient;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.globalAlpha = 0.16;
-  ctx.strokeStyle = "#fff";
-  for (let i = 0; i < 5; i += 1) {
-    ctx.beginPath();
-    ctx.moveTo(rect.x + Math.random() * rect.w, rect.y);
-    ctx.lineTo(rect.x + Math.random() * rect.w, rect.y + rect.h);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function addEdgeBlend(rect) {
-  ctx.save();
-  ctx.strokeStyle = "rgba(0,0,0,0.12)";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(rect.x + 2, rect.y + 2, rect.w - 4, rect.h - 4);
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(rect.x + 5, rect.y + 5, rect.w - 10, rect.h - 10);
-  ctx.restore();
-}
-
-function pick(values) {
-  return values[Math.floor(Math.random() * values.length)];
-}
-
 function loadFile(file) {
   const image = new Image();
   image.onload = () => {
-    sourceKind = "upload";
-    sourceImage = image;
     fitCanvasToImage(image.width, image.height);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -562,8 +356,8 @@ function loadFile(file) {
     syncTabs();
     renderCandidateList();
     renderCanvas();
-    setStatus("이미지를 불러왔습니다. 직접 영역을 드래그하거나 후보 찾기를 누르세요.");
-    setAgent("업로드 이미지가 준비되었습니다. Agent 분석을 누르면 RunPod/OpenAI 연결 상태에 따라 후보와 편집 프롬프트를 생성합니다.", "ready");
+    setStatus("이미지를 불러왔습니다. 직접 영역을 드래그하거나 AI 분석을 누르세요.");
+    setAgent("업로드 이미지가 준비되었습니다. AI 분석을 누르면 CV 서비스가 후보를 찾습니다.", "ready");
   };
   image.src = URL.createObjectURL(file);
 }
@@ -620,10 +414,6 @@ function selectedCandidates() {
   return candidates.filter((candidate) => candidate.selected);
 }
 
-function preservedCandidates() {
-  return candidates.filter((candidate) => !candidate.selected);
-}
-
 async function callAgent(path, body) {
   const response = await fetch(path, {
     method: "POST",
@@ -642,14 +432,13 @@ async function requestAgentAnalysis() {
     addSampleCandidates();
     return;
   }
-  setStatus("Agent가 이미지 맥락과 식별 단서를 분석하고 있습니다.");
-  setAgent("OpenAI vision/RunPod worker 연결을 시도합니다. 연결이 없으면 로컬 후보로 이어집니다.", "running");
+  setStatus("AI가 이미지의 개인정보 단서를 분석하고 있습니다.");
+  setAgent("CV 서비스에 이미지 분석을 요청했습니다.", "running");
   try {
-    const data = await callAgent("/api/agent/analyze", {
+    const data = await callAgent("/api/analyze", {
       imageDataUrl: canvasDataUrl(),
       width: canvas.width,
       height: canvas.height,
-      sourceKind,
     });
     candidates = data.candidates.map((candidate) => ({
       ...candidate,
@@ -660,138 +449,24 @@ async function requestAgentAnalysis() {
       h: Math.round(candidate.h),
       selected: candidate.selected !== false,
     }));
-    latestPlans = data.editPlans || [];
-    attachPlansToCandidates(latestPlans);
     renderCandidateList();
     renderCanvas();
-    setStatus(`${candidates.length}개 후보를 찾았습니다. 유지 클릭을 켠 뒤 바꾸지 않을 마스크를 클릭하세요.`);
-    setAgent(formatAgentOutput(data), data.provider || "agent");
+    setStatus(
+      candidates.length
+        ? `${candidates.length}개 후보를 찾았습니다. 가릴 항목만 선택하세요.`
+        : "탐지된 개인정보 단서가 없습니다.",
+    );
+    setAgent(formatAgentOutput(data), data.provider || "cv");
   } catch (error) {
-    if (sourceKind === "sample") {
-      addSampleCandidates();
-    }
-    setStatus("Agent 서버 연결이 없어 로컬 데모 후보를 사용합니다.");
-    setAgent(`서버 모드로 실행하면 실제 Agent 분석을 사용할 수 있습니다.\n\n${error.message}`, "offline");
+    setStatus("CV 분석에 실패했습니다. 서버 연결을 확인해 주세요.");
+    setAgent(`CV 서비스 오류\n\n${error.message}`, "offline");
   }
-}
-
-async function requestAgentReplacement() {
-  const targets = selectedCandidates();
-  if (!targets.length) {
-    setStatus("선택된 치환 후보가 없습니다.");
-    return true;
-  }
-  setStatus("Agent가 후보별 편집 프롬프트와 마스크를 준비하고 있습니다.");
-  setAgent("선택 영역의 이미지 분위기, 조명, 거리감에 맞춘 치환 계획을 생성합니다.", "planning");
-  const masks = targets.map((candidate) => ({
-    id: candidate.id,
-    maskDataUrl: createMaskDataUrl(candidate),
-  }));
-  try {
-    const data = await callAgent("/api/agent/replace", {
-      imageDataUrl: canvasDataUrl(),
-      width: canvas.width,
-      height: canvas.height,
-      candidates: targets,
-      preservedCandidates: preservedCandidates(),
-      masks,
-      mode: agentMode.value,
-    });
-    latestPlans = data.editPlans || [];
-    attachPlansToCandidates(latestPlans);
-    setAgent(formatAgentOutput(data), data.provider || "agent");
-    if (data.resultImageDataUrl) {
-      await loadResultDataUrl(data.resultImageDataUrl);
-      setStatus("OpenAI 이미지 편집 결과를 적용했습니다.");
-      return true;
-    }
-    if (data.editPlans?.length) {
-      setStatus("Agent 계획을 만들었습니다. 현재는 로컬 치환으로 미리보기를 적용합니다.");
-      applyPlannedLocalReplacements(data.editPlans);
-      return true;
-    }
-  } catch (error) {
-    setAgent(`AI 치환 호출에 실패했습니다. 로컬 자연 치환으로 계속합니다.\n\n${error.message}`, "fallback");
-    setStatus("AI 치환이 실패해 로컬 치환을 적용합니다.");
-  }
-  return false;
 }
 
 async function requestAgentVerification() {
-  setStatus("Agent가 결과 이미지에 식별 단서가 남았는지 검수하고 있습니다.");
-  try {
-    const data = await callAgent("/api/agent/verify", {
-      originalImageDataUrl: originalImageData ? imageDataToDataUrl(originalImageData) : null,
-      resultImageDataUrl: canvasDataUrl(),
-      candidates,
-      editPlans: latestPlans,
-    });
-    setAgent(formatAgentOutput(data), data.provider || "verify");
-    setStatus(data.verdict || "검수가 끝났습니다.");
-  } catch (error) {
-    setAgent(`서버 검수 대신 로컬 상태를 표시합니다.\n\n선택 후보 ${selectedCandidates().length}개가 치환 대상으로 처리되었습니다.\n${error.message}`, "offline");
-    setStatus("로컬 검수 결과를 표시했습니다.");
-  }
-}
-
-function attachPlansToCandidates(plans) {
-  const planById = new Map(plans.map((plan) => [plan.targetId, plan]));
-  candidates.forEach((candidate) => {
-    candidate.plan = planById.get(candidate.id) || candidate.plan;
-  });
-  renderCandidateList();
-}
-
-function applyPlannedLocalReplacements(plans) {
-  plans.forEach((plan) => {
-    const candidate = candidates.find((item) => item.id === plan.targetId);
-    if (candidate) candidate.plan = plan;
-  });
-  applyLocalReplacementNow();
-}
-
-function applyLocalReplacementNow() {
-  ctx.putImageData(resultImageData, 0, 0);
-  selectedCandidates().forEach((candidate) => replaceCandidate(candidate));
-  resultImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  showOriginal = false;
-  syncTabs();
-  renderCanvas();
-}
-
-function createMaskDataUrl(candidate) {
-  const maskCanvas = document.createElement("canvas");
-  maskCanvas.width = canvas.width;
-  maskCanvas.height = canvas.height;
-  const maskCtx = maskCanvas.getContext("2d");
-  maskCtx.fillStyle = "rgba(0,0,0,1)";
-  maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-  const pad = Number(intensity.value) * 4;
-  const rect = clampRect({
-    x: candidate.x - pad,
-    y: candidate.y - pad,
-    w: candidate.w + pad * 2,
-    h: candidate.h + pad * 2,
-  });
-  maskCtx.globalCompositeOperation = "destination-out";
-  if (candidate.type === "face") {
-    maskCtx.beginPath();
-    maskCtx.ellipse(
-      rect.x + rect.w / 2,
-      rect.y + rect.h / 2,
-      rect.w * 0.56,
-      rect.h * 0.62,
-      0,
-      0,
-      Math.PI * 2,
-    );
-    maskCtx.fill();
-  } else if (candidate.type === "license_plate") {
-    roundedMaskCutout(maskCtx, rect, Math.min(10, rect.h * 0.18));
-  } else {
-    roundedMaskCutout(maskCtx, rect, Math.min(16, rect.h * 0.12));
-  }
-  return maskCanvas.toDataURL("image/png");
+  const selected = selectedCandidates().length;
+  setAgent(`가리기 대상으로 선택된 항목: ${selected}개`, "review");
+  setStatus(selected ? "선택한 항목을 가리거나, 원본 탭에서 다시 검토하세요." : "가릴 항목을 먼저 선택하세요.");
 }
 
 function candidateAtPoint(point) {
@@ -813,48 +488,8 @@ function togglePreserveCandidate(candidate) {
   candidate.selected = !candidate.selected;
   renderCandidateList();
   renderCanvas();
-  const state = candidate.selected ? "치환 대상" : "유지 대상";
+  const state = candidate.selected ? "가리기 대상" : "유지 대상";
   setStatus(`${typeLabels[candidate.type] || candidate.type} 영역을 ${state}으로 표시했습니다.`);
-}
-
-function roundedMaskCutout(maskCtx, rect, radius) {
-  const r = Math.max(0, Math.min(radius, rect.w / 2, rect.h / 2));
-  maskCtx.beginPath();
-  maskCtx.moveTo(rect.x + r, rect.y);
-  maskCtx.lineTo(rect.x + rect.w - r, rect.y);
-  maskCtx.quadraticCurveTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r);
-  maskCtx.lineTo(rect.x + rect.w, rect.y + rect.h - r);
-  maskCtx.quadraticCurveTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h);
-  maskCtx.lineTo(rect.x + r, rect.y + rect.h);
-  maskCtx.quadraticCurveTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r);
-  maskCtx.lineTo(rect.x, rect.y + r);
-  maskCtx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y);
-  maskCtx.fill();
-}
-
-function imageDataToDataUrl(imageData) {
-  const temp = document.createElement("canvas");
-  temp.width = imageData.width;
-  temp.height = imageData.height;
-  temp.getContext("2d").putImageData(imageData, 0, 0);
-  return temp.toDataURL("image/png");
-}
-
-function loadResultDataUrl(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      resultImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      showOriginal = false;
-      syncTabs();
-      renderCanvas();
-      resolve();
-    };
-    image.onerror = reject;
-    image.src = dataUrl;
-  });
 }
 
 function formatAgentOutput(data) {
@@ -881,7 +516,7 @@ function formatAgentOutput(data) {
   if (data.remainingRisks?.length) {
     parts.push(`Remaining risks:\n${data.remainingRisks.join("\n")}`);
   }
-  return parts.filter(Boolean).join("\n\n") || "Agent 응답이 비어 있습니다.";
+  return parts.filter(Boolean).join("\n\n") || "CV 응답이 비어 있습니다.";
 }
 
 fileInput.addEventListener("change", (event) => {

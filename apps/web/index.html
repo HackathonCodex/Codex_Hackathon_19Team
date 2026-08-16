@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Context Preserving Image Replacement</title>
+    <title>Privacy Image Guard</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -12,8 +12,8 @@
         <div class="brand">
           <span class="mark"></span>
           <div>
-            <h1>Image Context Replacer</h1>
-            <p>얼굴, 간판, 표지판, 번호판을 자연 치환</p>
+            <h1>Privacy Image Guard</h1>
+            <p>공유 전 사진 속 개인정보 단서를 확인하세요.</p>
           </div>
         </div>
 
@@ -23,9 +23,9 @@
             <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp" />
           </label>
           <button id="sampleBtn" type="button">샘플 불러오기</button>
-          <button id="detectBtn" type="button">Agent 분석</button>
-          <button id="applyBtn" type="button" class="primary">선택 치환</button>
-          <button id="verifyBtn" type="button">결과 검수</button>
+          <button id="detectBtn" type="button">AI 분석</button>
+          <button id="applyBtn" type="button" class="primary">선택 가리기</button>
+          <button id="verifyBtn" type="button">선택 확인</button>
           <button id="downloadBtn" type="button">다운로드</button>
         </div>
       </section>
@@ -35,8 +35,7 @@
           <div class="field">
             <label for="agentMode">실행 모드</label>
             <select id="agentMode">
-              <option value="auto">Agent 자동</option>
-              <option value="plan">Agent 계획만</option>
+              <option value="auto">CV API 분석</option>
               <option value="local">로컬 데모</option>
             </select>
           </div>
@@ -44,16 +43,16 @@
           <div class="field">
             <label for="replacementType">수동 영역 유형</label>
             <select id="replacementType">
-              <option value="face">다른 얼굴</option>
-              <option value="store_sign">가짜 간판</option>
-              <option value="road_sign">가짜 표지판</option>
-              <option value="license_plate">무효 번호판</option>
-              <option value="landmark">일반 배경</option>
+              <option value="face">얼굴</option>
+              <option value="store_sign">간판</option>
+              <option value="road_sign">도로 표지판</option>
+              <option value="license_plate">차량 번호판</option>
+              <option value="landmark">위치 단서</option>
             </select>
           </div>
 
           <div class="field">
-            <label for="intensity">자연 치환 강도</label>
+            <label for="intensity">가리기 강도</label>
             <input id="intensity" type="range" min="1" max="3" value="2" />
           </div>
 
@@ -70,11 +69,11 @@
           <ol id="candidateList" class="candidate-list"></ol>
 
           <div class="agent-head">
-            <h2>Agent 계획</h2>
+            <h2>분석 결과</h2>
             <span id="agentBadge">standby</span>
           </div>
           <div id="agentPlan" class="agent-plan">
-            Agent가 이미지를 읽고 후보, 위험도, 치환 프롬프트를 결정합니다.
+            이미지 업로드 후 AI 분석을 누르면 개인정보 단서 후보가 표시됩니다.
           </div>
         </aside>
 
