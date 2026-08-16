@@ -1,0 +1,5 @@
+services:
+  cv:
+    build: ./services/cv
+    ports:
+      - "8000:8000"
