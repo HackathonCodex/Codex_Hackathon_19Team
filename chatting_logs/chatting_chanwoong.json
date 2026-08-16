@@ -1,0 +1,283 @@
+{
+  "document_type": "comprehensive_conversation_handoff",
+  "language": "ko",
+  "scope": "해커톤 아이디어 탐색부터 Privacy Image Guard의 EC2·Docker·Nginx·GitHub Actions 배포까지의 대화 전체를 작업 인계 목적으로 종합한 기록",
+  "note": "대화 원문을 기계적으로 내보낸 transcript가 아니라, 의사결정·실행 결과·미해결 항목을 빠짐없이 재구성한 JSON이다. 토큰, 개인키, 이메일 등 민감값은 기록하지 않는다.",
+  "conversation_timeline": [
+    {
+      "phase": "01_hackathon_idea_exploration",
+      "topics": [
+        "인터넷 데이터를 수집해 활용하는 해커톤 아이디어",
+        "공익성, 문제 정의의 명확성, 기존 서비스와의 차별화",
+        "러닝을 중심으로 한 서비스 가능성"
+      ],
+      "ideas_considered": [
+        {
+          "idea": "대학교별 러닝 경쟁, 땅따먹기, 집을 짓고 방치하면 무너지는 게임화",
+          "value": "러닝 지속 동기와 대학 커뮤니티 경쟁",
+          "concerns": ["기존 러닝 서비스와의 차별점 약함", "일상 러닝 기록과 핵심 로직의 연결 약함", "문제 정의가 게임 요소에 비해 약함"]
+        },
+        {
+          "idea": "러닝 GPS 기록을 수집하고 이후 개인화 기능을 붙이는 서비스",
+          "technical_discussion": ["웹에서도 navigator.geolocation으로 GPS 추적 가능", "HTTPS·권한·foreground 제약 존재", "초기에는 React Native와 웹을 비교했고 최종적으로 웹 구현 가능성을 확인"]
+        },
+        {
+          "idea": "기기 여권 및 전자폐기물 감소",
+          "concept": "휴대폰 또는 노트북 상태 진단, 중고 재사용, 탄소 저감량 시각화"
+        },
+        {
+          "idea": "냉장고 재료 스캔 기반 증량 레시피",
+          "concept": "보유 재료 인식 후 증량 목적 레시피 추천"
+        },
+        {
+          "idea": "지하철 칸 혼잡도 확인",
+          "concept": "통학 시 혼잡도 데이터 활용"
+        },
+        {
+          "idea": "여행 동행자 취향을 합쳐 일정 생성",
+          "concept": "2~5인의 취향 테스트 결과를 합의 가능한 일정으로 변환"
+        }
+      ],
+      "outcome": "러닝보다 문제 정의가 선명한 개인정보 이미지 보호 서비스로 방향을 전환"
+    },
+    {
+      "phase": "02_privacy_image_guard_product_definition",
+      "product_name": "Privacy Image Guard",
+      "one_liner": "SNS·커뮤니티·오픈채팅에 이미지를 올리기 전, 위치와 신원을 추정할 수 있는 단서를 찾아 사용자가 익명화하는 웹 서비스",
+      "user_problem": "사진을 공유할 때 사용자는 풍경이나 인증샷에 집중하지만, 간판·문패·주소·차량번호·지도 핀·알림 내용이 생활반경과 신원을 노출할 수 있다. 게시 후에는 회수가 어렵다.",
+      "target_users": [
+        "일상·맛집·여행 사진을 자주 올리는 20대",
+        "집·학교·회사 근처에서 찍은 사진을 공유하는 사용자",
+        "스크린샷을 커뮤니티에 공유하는 사용자"
+      ],
+      "mvp_flow": [
+        "이미지 업로드",
+        "AI/CV가 위치·신원 단서 후보를 탐지하고 영역을 표시",
+        "사용자가 항목별로 유지·마스킹·익명 텍스트 교체를 선택",
+        "SNS 공유용 PNG 또는 JPG 다운로드",
+        "원본과 결과물 즉시 삭제"
+      ],
+      "mvp_detection_scope": [
+        "전화번호, 이메일, 주소",
+        "차량번호",
+        "상호명, 학교명, 건물명, 문패 같은 위치 특정 텍스트",
+        "지도 핀, 좌표, 현재 위치",
+        "스크린샷의 계정명과 알림 내용"
+      ],
+      "explicit_exclusions_and_safety_boundary": [
+        "얼굴 가리기는 MVP 범위에서 제외",
+        "신분증·계약서·영수증·성적표·의료·금융 문서는 편집 또는 그럴듯한 정보 교체 대상으로 삼지 않음",
+        "공개용 익명화는 일반 사진과 스크린샷에만 적용",
+        "텍스트 대체는 홍길동·○○카페처럼 명백한 익명값을 사용하고, 공식 문서처럼 보이는 위조를 만들지 않음"
+      ],
+      "product_differentiation": [
+        "단순 블러 도구와 달리 AI가 먼저 위험 단서와 위험 이유를 제시",
+        "무조건 삭제하지 않고 사용자 검토를 거쳐 필요한 정보만 남김",
+        "블러뿐 아니라 공개용 익명 텍스트로 교체해 사진 맥락을 보존",
+        "로그인·보관 없이 처리 후 삭제하는 신뢰 중심 UX"
+      ],
+      "planned_screens": [
+        "업로드 화면: 원본 저장하지 않음 안내와 이미지 선택",
+        "분석 화면: 이미지 위 탐지 박스와 분류 표시",
+        "검토 화면: 유지·가리기·바꾸기 선택",
+        "완료 화면: 전후 비교와 다운로드"
+      ],
+      "demo_scenario": "카페 인증샷에서 간판, 지도 핀, 배송 알림 주소를 탐지한다. 사용자는 카페명은 유지하고 지도 핀과 주소만 가린 뒤 공유용 이미지를 내려받는다."
+    },
+    {
+      "phase": "03_project_structure_and_backend",
+      "backend_framework_choice": "FastAPI (Python)",
+      "rationale": [
+        "CV 팀이 Python을 사용할 가능성이 높아 통합이 단순",
+        "이미지 처리와 비동기 분석 요청에 적합",
+        "자동 API 문서 제공"
+      ],
+      "created_workspace_structure": {
+        "project_root": "privacy-image-guard",
+        "apps/web": "프론트엔드",
+        "apps/api": "FastAPI 백엔드",
+        "apps/api/src/routes": "업로드·분석·다운로드 API",
+        "apps/api/src/services": "분석 요청·이미지 편집 흐름",
+        "apps/api/src/repositories": "DB·파일 저장 접근",
+        "apps/api/src/models": "분석 작업·탐지 항목 모델",
+        "apps/api/src/jobs": "즉시 삭제 작업",
+        "services/cv": "CV 팀의 이미지 분석 서비스",
+        "packages/contracts": "백엔드와 CV 서비스의 공용 요청·응답 규격",
+        "infra": "Docker와 배포 설정"
+      },
+      "team_boundary": "CV 팀은 이미지와 분석 ID를 받아 탐지 박스·분류·신뢰도를 반환한다. 백엔드는 업로드, 검토 상태, 마스킹·텍스트 교체, 결과 다운로드와 삭제를 담당한다."
+    },
+    {
+      "phase": "04_initial_ec2_setup_and_instance_change",
+      "initial_server": {
+        "private_hostname": "ip-10-0-30-242",
+        "public_ip_at_the_time": "43.203.68.235",
+        "work_done": ["swap 구성", "Docker 설치·실행", "Nginx 설치·실행", "DuckDNS 도메인 연결", "Certbot 인증서 발급·Nginx 설치"]
+      },
+      "instance_change": {
+        "observation": "이후 접속한 호스트명이 ip-10-0-11-206으로 달랐고 홈 디렉터리가 비어 보였음",
+        "diagnosis": "파일 삭제가 아니라 다른 EC2 인스턴스에 접속한 상태로 판단",
+        "lesson": "ls -al은 홈 디렉터리만 보여 /etc/nginx, /opt, Docker 데이터는 보이지 않음. EC2 인스턴스 ID와 public IP를 먼저 확인해야 함"
+      }
+    },
+    {
+      "phase": "05_current_ec2_runtime_setup",
+      "server": {
+        "os": "Amazon Linux 2023",
+        "private_hostname": "ip-10-0-11-206",
+        "public_ip": "43.203.75.103",
+        "domain": "codexcv.duckdns.org"
+      },
+      "installed_and_enabled": [
+        "Docker 25.0.14",
+        "Docker Compose CLI plugin",
+        "Nginx 1.30.4",
+        "Certbot 2.6.0 및 python3-certbot-nginx",
+        "Nginx systemd service",
+        "Docker systemd service",
+        "certbot-renew.timer"
+      ],
+      "network_and_tls": {
+        "domain_routing": "DuckDNS가 새 EC2 public IP로 연결된 뒤 HTTP 200 확인",
+        "https": "Let’s Encrypt 인증서가 /etc/letsencrypt/live/codexcv.duckdns.org/에 적용됨",
+        "http_behavior": "80 포트에서 HTTPS로 301 리다이렉트",
+        "security_group_expected": ["22/tcp는 개발자 IP만", "80/tcp와 443/tcp는 공개", "8080/tcp와 컨테이너 8000/tcp는 외부 미공개"]
+      },
+      "deployment_files": {
+        "deployment_directory": "/opt/codexcv",
+        "compose_file": "/opt/codexcv/compose.yml",
+        "compose_services": {
+          "api": {
+            "image": "chanwoongyoon/privacy-image-guard-api:latest",
+            "container_port": 8000,
+            "host_binding": "127.0.0.1:8080:8000",
+            "restart": "unless-stopped"
+          },
+          "cv": {
+            "image": "chanwoongyoon/privacy-image-guard-cv:latest",
+            "container_port": 8000,
+            "external_port": "없음. Docker 내부 네트워크만 사용",
+            "restart": "unless-stopped"
+          }
+        }
+      },
+      "image_inspection": {
+        "api_command": "uvicorn app.main:app --host 0.0.0.0 --port 8000",
+        "cv_command": "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      },
+      "runtime_verification": {
+        "docker_compose_ps": "api와 cv 컨테이너 모두 Up 상태 확인",
+        "api_health": "http://127.0.0.1:8080/health -> 200 OK, {\"status\":\"ok\"}",
+        "cv_health_via_api": "http://127.0.0.1:8080/health/cv -> 200 OK, {\"status\":\"ok\"}"
+      }
+    },
+    {
+      "phase": "06_nginx_proxy_setup",
+      "config_file": "/etc/nginx/conf.d/codexcv.conf",
+      "existing_https_server": "443 ssl server block with Certbot-managed certificate directives",
+      "existing_http_server": "80 server block redirects to HTTPS",
+      "initial_issue": "https://codexcv.duckdns.org/docs에서 'codexcv server ready'가 보였음. HTTPS server block의 location /이 고정 텍스트를 반환하고 있었기 때문",
+      "requested_proxy_rules": [
+        {
+          "path": "/docs",
+          "upstream": "http://127.0.0.1:8080",
+          "purpose": "FastAPI Swagger UI 노출"
+        },
+        {
+          "path": "/openapi.json",
+          "upstream": "http://127.0.0.1:8080",
+          "purpose": "Swagger UI가 사용하는 OpenAPI 명세 노출"
+        }
+      ],
+      "safe_edit_rule": "location = /docs 및 location = /openapi.json은 listen 443 ssl이 있는 첫 번째 server 블록 안, Certbot 인증서 설정 뒤와 해당 server 블록의 닫는 중괄호 앞에 넣는다. 80 포트 redirect server 블록에는 넣지 않는다.",
+      "expected_validation": [
+        "sudo nginx -t",
+        "sudo systemctl reload nginx",
+        "curl -I https://codexcv.duckdns.org/docs",
+        "브라우저에서 https://codexcv.duckdns.org/docs의 Swagger UI 확인"
+      ],
+      "status": "사용자가 /docs 및 /openapi.json location 블록을 편집한 것으로 보이나, reload 이후 Swagger UI 표시 여부는 아직 대화에서 최종 검증되지 않음"
+    },
+    {
+      "phase": "07_docker_hub_and_github_actions_cd",
+      "docker_hub": {
+        "images": [
+          "chanwoongyoon/privacy-image-guard-api:latest",
+          "chanwoongyoon/privacy-image-guard-cv:latest"
+        ],
+        "pat_policy": {
+          "simplified_choice": "단일 Read + Write PAT 사용",
+          "recommended_production_split": "EC2 pull 전용 Read PAT와 CI push용 Read + Write PAT 분리",
+          "delete_permission": "불필요"
+        }
+      },
+      "ci_cd_target_flow": "main push -> GitHub Actions에서 API/CV multi-arch 이미지 빌드 및 Docker Hub push -> GitHub Actions SSH로 EC2 접속 -> /opt/codexcv에서 docker compose pull && up -d -> API CV health check",
+      "github_actions_secrets": {
+        "DOCKERHUB_USERNAME": "Docker Hub 사용자명",
+        "DOCKERHUB_TOKEN": "Docker Hub PAT",
+        "IMAGE_TAG": "현재 latest 사용",
+        "EC2_HOST": "새 EC2 public IP 43.203.75.103만 저장. http://, 포트, 사용자명, 공백 제외",
+        "EC2_USERNAME": "ec2-user",
+        "EC2_SSH_KEY_PATH": "GitHub Actions 전용 OpenSSH 개인키 전체 내용. 이름과 달리 파일 경로가 아니라 키 본문을 저장",
+        "EC2_SSH_KNOWN_HOSTS": "ssh-keyscan -H 43.203.75.103 결과에서 host key 행을 저장"
+      },
+      "ssh_key_notes": [
+        "GitHub Actions 전용 ed25519 키를 만들고 공개키를 EC2 authorized_keys에 등록",
+        "GitHub Secret에는 개인키 본문 전체를 줄바꿈 포함해 저장",
+        "known_hosts는 서버 식별용 공개 호스트 키이며 비밀번호나 개인키가 아님"
+      ],
+      "workflow_issues_and_fixes": [
+        {
+          "issue": "Deploy to EC2 단계에서 'Could not resolve hostname' 오류",
+          "diagnosis": "EC2_HOST가 bare hostname/IP가 아니거나 워크플로 secret 참조가 잘못됐을 가능성. 새 public IP 확인 후 EC2_HOST를 43.203.75.103으로 교체하도록 안내",
+          "follow_up": "워크플로 YAML의 publish와 deploy job은 반드시 sibling이어야 하고 steps 들여쓰기를 유지해야 함"
+        },
+        {
+          "issue": "SSH known_hosts Secret이 초기 목록에 없었음",
+          "fix": "EC2_SSH_KNOWN_HOSTS Secret 추가. ssh-keyscan -H 43.203.75.103의 ssh-ed25519 및 ecdsa host key 행 사용"
+        },
+        {
+          "issue": "배포 로그에서 이미지 pull 및 컨테이너 recreate 후 curl (56) Recv failure: Connection reset by peer로 job 실패",
+          "diagnosis": "docker compose up -d 직후 Uvicorn이 완전히 준비되기 전에 health check가 실행된 시작 경합. 서버에서 조금 뒤 health endpoints는 200으로 정상 확인됨",
+          "workflow_fix": "SSH deploy 명령의 health check 앞에 sleep 5를 넣고 curl에 --retry 10 --retry-delay 2 --retry-all-errors를 사용"
+        }
+      ]
+    }
+  ],
+  "current_state": {
+    "product": "Privacy Image Guard MVP 방향 확정",
+    "backend_and_cv": "새 EC2의 Docker Compose에서 정상 실행 및 내부 health check 성공",
+    "https": "새 EC2의 codexcv.duckdns.org에 인증서 적용 확인",
+    "nginx": "HTTPS server block에서 docs/openapi 프록시 편집을 진행했으며 최종 Swagger UI 확인이 남음",
+    "auto_deploy": "GitHub Actions가 EC2에 SSH 접속해 pull과 container recreate까지 도달. startup race를 견디도록 health-check 재시도 로직 수정 필요"
+  },
+  "next_actions_in_order": [
+    {
+      "action": "Nginx /docs 및 /openapi.json 프록시 최종 검증",
+      "commands": [
+        "sudo nginx -t",
+        "sudo systemctl reload nginx",
+        "curl -I https://codexcv.duckdns.org/docs"
+      ],
+      "success": "브라우저에서 https://codexcv.duckdns.org/docs Swagger UI가 표시됨"
+    },
+    {
+      "action": "GitHub Actions deploy health check 수정",
+      "required_change": "docker compose up -d 뒤에 sleep 5, curl에는 --retry 10 --retry-delay 2 --retry-all-errors 적용",
+      "success": "main push 후 publish와 deploy job이 모두 green"
+    },
+    {
+      "action": "EC2 security group 검증",
+      "success": "80·443만 public, 22는 개발자 IP만, 8080은 public rule 없음"
+    },
+    {
+      "action": "새 EC2 swap 상태 확인",
+      "commands": ["swapon --show", "free -h"],
+      "success": "필요 시 2GB swap 구성"
+    },
+    {
+      "action": "프론트엔드 배포 경로 결정",
+      "decision": "프론트를 같은 Nginx root에 배포할지, 별도 호스트에 배포할지 결정한 뒤 실제 API 공개 path와 Nginx location 규칙 확정"
+    }
+  ]
+}
